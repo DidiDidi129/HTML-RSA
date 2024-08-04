@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Encrypt and Decrypt Messages</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(to right, #2c3e50, #3498db);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            color: #fff;
+        }
+        h1 {
+            margin-bottom: 30px;
+        }
+        h2 {
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        input, textarea, button {
+            display: block;
+            width: 100%;
+            max-width: 400px;
+            margin: 10px 0;
+            padding: 10px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+        }
+        input, textarea {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+        textarea {
+            height: 100px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        pre {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            width: 100%;
+            max-width: 400px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Encrypt and Decrypt Messages</h1>
+    
+    <h2>Encrypt Message with Public Key</h2>
+    <input type="file" id="publicKeyFile" accept=".key">
+    <textarea id="messageToEncrypt" placeholder="Enter your message here"></textarea>
+    <button id="encryptButton">Encrypt Message</button>
+
+    <h2>Decrypt Message with Private Key</h2>
+    <input type="file" id="privateKeyFile" accept=".key">
+    <textarea id="encryptedMessageToDecrypt" placeholder="Enter your encrypted message here"></textarea>
+    <button id="decryptButton">Decrypt Message</button>
+
+    <script>
+        document.getElementById('encryptButton').addEventListener('click', async () => {
+            const publicKeyFile = document.getElementById('publicKeyFile').files[0];
+            const message = document.getElementById('messageToEncrypt').value;
+
+            if (!publicKeyFile) {
+                alert('Please select a public key file.');
+                return;
+            }
+
+            if (!message) {
+                alert('Please enter a message.');
+                return;
+            }
+
+            try {
+                const publicKeyPem = await readFile(publicKeyFile);
+                const publicKey = await importPublicKey(publicKeyPem);
+                const encryptedMessage = await encryptMessage(publicKey, message);
+
+                document.getElementById('messageToEncrypt').value = '';
+                document.getElementById('encryptedMessageToDecrypt').value = encryptedMessage;
+            } catch (error) {
+                console.error('Error occurred:', error);
+                alert('An error occurred during encryption.');
+            }
+        });
+
+        document.getElementById('decryptButton').addEventListener('click', async () => {
+            const privateKeyFile = document.getElementById('privateKeyFile').files[0];
+            const encryptedMessage = document.getElementById('encryptedMessageToDecrypt').value;
+
+            if (!privateKeyFile) {
+                alert('Please select a private key file.');
+                return;
+            }
+
+            if (!encryptedMessage) {
+                alert('Please enter the encrypted message.');
+                return;
+            }
+
+            try {
+                const privateKeyPem = await readFile(privateKeyFile);
+                const privateKey = await importPrivateKey(privateKeyPem);
+                const decryptedMessage = await decryptMessage(privateKey, encryptedMessage);
+
+                document.getElementById('encryptedMessageToDecrypt').value = '';
+                document.getElementById('messageToEncrypt').value = decryptedMessage;
+            } catch (error) {
+                console.error('Error occurred:', error);
+                alert('An error occurred during decryption.');
+            }
+        });
+
+        function readFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = (error) => reject(new Error('Error reading file: ' + error));
+                reader.readAsText(file);
+            });
+        }
+
+        async function importPublicKey(pem) {
+            const pemHeader = "-----BEGIN PUBLIC KEY-----";
+            const pemFooter = "-----END PUBLIC KEY-----";
+            const pemContents = pem.substring(pemHeader.length, pem.length - pemFooter.length).trim();
+            const binaryDerString = window.atob(pemContents);
+            const binaryDer = str2ab(binaryDerString);
+            return await window.crypto.subtle.importKey(
+                "spki",
+                binaryDer,
+                {
+                    name: "RSA-OAEP",
+                    hash: "SHA-256"
+                },
+                true,
+                ["encrypt"]
+            );
+        }
+
+        async function importPrivateKey(pem) {
+            const pemHeader = "-----BEGIN PRIVATE KEY-----";
+            const pemFooter = "-----END PRIVATE KEY-----";
+            const pemContents = pem.substring(pemHeader.length, pem.length - pemFooter.length).trim();
+            const binaryDerString = window.atob(pemContents);
+            const binaryDer = str2ab(binaryDerString);
+            return await window.crypto.subtle.importKey(
+                "pkcs8",
+                binaryDer,
+                {
+                    name: "RSA-OAEP",
+                    hash: "SHA-256"
+                },
+                true,
+                ["decrypt"]
+            );
+        }
+
+        function str2ab(str) {
+            const buf = new ArrayBuffer(str.length);
+            const bufView = new Uint8Array(buf);
+            for (let i = 0, strLen = str.length; i < strLen; i++) {
+                bufView[i] = str.charCodeAt(i);
+            }
+            return buf;
+        }
+
+        async function encryptMessage(publicKey, message) {
+            const encoder = new TextEncoder();
+            const encodedMessage = encoder.encode(message);
+            const encryptedMessage = await window.crypto.subtle.encrypt(
+                {
+                    name: "RSA-OAEP"
+                },
+                publicKey,
+                encodedMessage
+            );
+            return ab2str(encryptedMessage);
+        }
+
+        async function decryptMessage(privateKey, encryptedMessage) {
+            const encryptedMessageBytes = str2ab(window.atob(encryptedMessage));
+            const decryptedMessage = await window.crypto.subtle.decrypt(
+                {
+                    name: "RSA-OAEP"
+                },
+                privateKey,
+                encryptedMessageBytes
+            );
+            const decoder = new TextDecoder();
+            return decoder.decode(decryptedMessage);
+        }
+
+        function ab2str(buf) {
+            return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)));
+        }
+    </script>
+</body>
+</html>

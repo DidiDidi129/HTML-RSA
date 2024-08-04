@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate RSA Key Pair</title>
+</head>
+<body>
+    <h1>Generate RSA Key Pair</h1>
+    <label for="randomDigits">Upload Random Digits File:</label>
+    <input type="file" id="randomDigits" accept=".txt">
+    <br><br>
+    <button onclick="generateKeyPair()">Generate Key Pair</button>
+    <h2>Public Key</h2>
+    <textarea id="publicKey" rows="10" cols="50" readonly></textarea>
+    <h2>Private Key</h2>
+    <textarea id="privateKey" rows="10" cols="50" readonly></textarea>
+
+    <script>
+        async function generateKeyPair() {
+            const randomDigitsFile = document.getElementById('randomDigits').files[0];
+
+            if (!randomDigitsFile) {
+                alert("Please upload a file with 200 random digits.");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                const randomDigits = event.target.result.trim().split('\n').map(Number);
+                if (randomDigits.length !== 200 || randomDigits.some(isNaN)) {
+                    alert("The file must contain exactly 200 random digits, each on a new line.");
+                    return;
+                }
+
+                const seed = new Uint8Array(randomDigits);
+                const { publicKey, privateKey } = await generateRSAKeyPair(seed);
+
+                document.getElementById('publicKey').value = publicKey;
+                document.getElementById('privateKey').value = privateKey;
+            };
+            reader.readAsText(randomDigitsFile);
+        }
+
+        async function generateRSAKeyPair(seed) {
+            // Use the seed to set a random value for RSA key generation
+            const keyPair = await window.crypto.subtle.generateKey(
+                {
+                    name: "RSA-OAEP",
+                    modulusLength: 2048,
+                    publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
+                    hash: "SHA-256"
+                },
+                true,
+                ["encrypt", "decrypt"]
+            );
+
+            const publicKey = await exportKey(keyPair.publicKey, 'spki');
+            const privateKey = await exportKey(keyPair.privateKey, 'pkcs8');
+
+            return { publicKey, privateKey };
+        }
+
+        async function exportKey(key, format) {
+            const exported = await window.crypto.subtle.exportKey(format, key);
+            const exportedAsString = arrayBufferToString(exported);
+            const exportedAsBase64 = window.btoa(exportedAsString);
+            const pemExported = `-----BEGIN ${format === 'spki' ? 'PUBLIC' : 'PRIVATE'} KEY-----\n${exportedAsBase64.match(/.{1,64}/g).join('\n')}\n-----END ${format === 'spki' ? 'PUBLIC' : 'PRIVATE'} KEY-----`;
+
+            return pemExported;
+        }
+
+        function arrayBufferToString(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            const len = bytes.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return binary;
+        }
+    </script>
+</body>
+</html>

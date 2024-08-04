@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate Random Numbers</title>
+    <style>
+        #random-numbers {
+            font-family: Arial, sans-serif;
+            white-space: pre;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <h1>Generate and Download Random Single-Digit Numbers</h1>
+    <button id="download-btn">Download Random Numbers</button>
+    <div id="random-numbers"></div>
+    <script>
+        document.getElementById('download-btn').addEventListener('click', () => {
+            // Generate 200 random single-digit numbers
+            let numbers = '';
+            for (let i = 0; i < 200; i++) {
+                const randomNumber = Math.floor(Math.random() * 10);
+                numbers += randomNumber + '\n';
+            }
+
+            // Display numbers in the div
+            document.getElementById('random-numbers').textContent = numbers;
+
+            // Create a Blob with the numbers data
+            const blob = new Blob([numbers], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+
+            // Create a link element and trigger a download
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'random_numbers.txt';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Revoke the object URL
+            URL.revokeObjectURL(url);
+        });
+    </script>
+</body>
+</html>
